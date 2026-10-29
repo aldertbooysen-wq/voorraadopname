@@ -1,7 +1,3 @@
-<!-- Chosen Palette: Warm Neutral & Sunset Orange -->
-<!-- Application Structure Plan: Enkelbladsy-vorm vir die inlees van voorraad items na Google Sheets via Google Apps Script. Bevat datum-outomatisering, streepkodeskandering, kamera OCR vir tekslees, en 'n gecomprimeerde foto-neem funksie. -->
-<!-- Visualization & Content Choices: Interaktiewe vorm-elemente -> HTML/Tailwind; Responsiewe terugvoer -> JS Modals/Status-teks; Geen Mermaid of SVG grafiekbiblioteke nodig nie. -->
-<!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
 <!DOCTYPE html>
 <html lang="af">
 <head>
@@ -9,17 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Geskenkwinkel Voorraad</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Biblioteek vir die Streepkode Skandeerder via Kamera -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- Biblioteek vir OCR (Teksleser) -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap');
         .font-serif { font-family: 'Merriweather', serif; }
-        .pulse-border {
-            animation: pulse-border 1.5s infinite;
-        }
-        @keyframes pulse-border {
-            0% { border-color: #f97316; box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); }
-            70% { border-color: #f97316; box-shadow: 0 0 0 6px rgba(249, 115, 22, 0); }
-            100% { border-color: #e5e7eb; box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
-        }
+        #reader { width: 100%; max-width: 400px; margin: 0 auto; display: none; }
     </style>
 </head>
 <body class="bg-gray-100 flex justify-center items-start min-h-screen p-4 sm:pt-10">
@@ -30,39 +23,50 @@
             <p class="text-[#f97316] text-xs font-bold tracking-widest uppercase mb-1">Ewige Lig</p>
             <h1 class="text-3xl font-serif font-bold mb-2">Geskenkwinkel</h1>
             <p class="text-gray-300 text-sm leading-relaxed">
-                Skandeer die item, neem 'n foto, en voeg dit by die voorraadlys.
+                Skandeer die item se streepkode, lees die naam, en voeg by die voorraad.
             </p>
         </div>
 
         <div class="p-6 space-y-5">
             
+            <!-- Datum -->
             <div>
                 <label class="block text-gray-800 text-sm font-semibold mb-2">Datum</label>
                 <input type="text" id="dateInput" class="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 focus:outline-none" readonly>
             </div>
 
+            <!-- Streepkode -->
             <div>
                 <label class="block text-gray-800 text-sm font-semibold mb-2">Streepkode</label>
                 <div class="relative">
                     <input type="text" id="barcodeInput" placeholder="Bv. 600123456789" class="w-full px-4 py-3 pr-12 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
-                    <button id="scanBtn" type="button" class="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded-md transition-colors" title="Skandeer">
-                        &#128269;
+                    <button id="scanBtn" type="button" class="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded-md transition-colors" title="Skandeer met kamera">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m-8-8h16M4 8h.01M4 16h.01M20 8h.01M20 16h.01M8 4h.01M16 4h.01M8 20h.01M16 20h.01"></path>
+                        </svg>
                     </button>
                 </div>
+                <!-- Venster vir die kamera om oop te maak -->
+                <div id="reader" class="mt-2 rounded-lg border border-gray-300 overflow-hidden"></div>
             </div>
 
+            <!-- Item Naam (OCR met 20 Karakter Limiet) -->
             <div>
-                <label class="block text-gray-800 text-sm font-semibold mb-2">Item Naam</label>
+                <label class="block text-gray-800 text-sm font-semibold mb-2">Item Naam (Maks 20 letters)</label>
                 <div class="relative">
-                    <input type="text" id="itemName" placeholder="Bv. Groot Bybel / Gift Box" class="w-full px-4 py-3 pr-12 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
-                    <button id="ocrBtn" type="button" class="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-[#ea580c] bg-gray-50 hover:bg-orange-50 rounded-md transition-colors" title="Lees naam met kamera">
-                        &#128247;
+                    <!-- maxlength verseker jy kan self nie meer as 20 letters tik nie -->
+                    <input type="text" id="itemName" maxlength="20" placeholder="Bv. Groot Bybel" class="w-full px-4 py-3 pr-12 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
+                    <button id="ocrBtn" type="button" class="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-[#ea580c] bg-gray-50 hover:bg-orange-50 rounded-md transition-colors" title="Lees naam met OCR">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                        </svg>
                     </button>
                 </div>
                 <input type="file" accept="image/*" capture="environment" id="ocrInput" class="hidden">
                 <p id="ocrStatus" class="text-[#ea580c] font-bold text-xs mt-2 hidden animate-pulse text-right">Besig om teks te lees...</p>
             </div>
 
+            <!-- Prys en Hoeveelheid -->
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-gray-800 text-sm font-semibold mb-2">Prys (R)</label>
@@ -70,19 +74,11 @@
                 </div>
                 <div>
                     <label class="block text-gray-800 text-sm font-semibold mb-2">Hoeveelheid</label>
-                    <input type="number" id="itemQuantity" placeholder="1" class="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
+                    <input type="number" id="itemQuantity" placeholder="1" value="1" class="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
                 </div>
             </div>
 
-            <div>
-                <label class="block text-gray-800 text-sm font-semibold mb-2">Foto van die item</label>
-                <input type="file" accept="image/*" capture="environment" id="photoInput" class="hidden">
-                <button id="photoBtn" type="button" class="w-full bg-[#f1f5f9] hover:bg-gray-200 text-[#1e293b] font-medium py-3 px-4 rounded-lg flex justify-center items-center transition-colors">
-                    <span class="mr-2">&#128247;</span> Neem foto
-                </button>
-                <p id="photoStatus" class="text-green-600 text-sm mt-2 hidden text-center font-semibold">Foto gelaai &#10003;</p>
-            </div>
-
+            <!-- Submit -->
             <div class="pt-4">
                 <button id="submitBtn" type="button" class="w-full bg-[#ea580c] hover:bg-[#c2410c] text-white font-bold py-4 px-4 rounded-lg transition-colors">
                     Voeg by voorraad
@@ -91,17 +87,18 @@
         </div>
     </div>
 
+    <!-- Modale Waarskuwing -->
     <div id="alertModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
         <div class="bg-white rounded-lg p-6 max-w-sm w-11/12 text-center shadow-xl">
-            <div class="text-[#ea580c] text-4xl mb-3">&#9888;</div>
-            <h3 class="mb-5 text-lg font-normal text-gray-800" id="alertMessage">Voltooi asseblief alle velde.</h3>
-            <button id="closeAlertBtn" type="button" class="text-white bg-[#ea580c] hover:bg-[#c2410c] font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center">
+            <h3 class="mb-5 text-lg font-bold text-gray-800" id="alertMessage">Boodskap</h3>
+            <button id="closeAlertBtn" type="button" class="text-white bg-[#ea580c] hover:bg-[#c2410c] font-medium rounded-lg text-sm px-5 py-2.5">
                 Verstaan
             </button>
         </div>
     </div>
 
     <script>
+        // Formateer die datum
         const today = new Date();
         const yyyy = today.getFullYear();
         let mm = today.getMonth() + 1;
@@ -110,34 +107,82 @@
         if (mm < 10) mm = '0' + mm;
         document.getElementById('dateInput').value = dd + '/' + mm + '/' + yyyy;
 
-        let capturedPhoto = "";
-
+        // Custom Alert 
         function showAlert(message) {
             document.getElementById('alertMessage').innerText = message;
             document.getElementById('alertModal').classList.remove('hidden');
         }
-
         document.getElementById('closeAlertBtn').addEventListener('click', () => {
             document.getElementById('alertModal').classList.add('hidden');
         });
 
+        // ==========================================
+        // 1. STREEPKODE GEHEUE ("LEER" FUNKSIE)
+        // ==========================================
+        let barcodeMemory = JSON.parse(localStorage.getItem('geskenkMemory')) || {};
         const barcodeInput = document.getElementById('barcodeInput');
-        document.getElementById('scanBtn').addEventListener('click', () => {
-            barcodeInput.value = ''; 
-            barcodeInput.focus(); 
-            barcodeInput.classList.add('pulse-border');
-            setTimeout(() => barcodeInput.classList.remove('pulse-border'), 3000);
+        const itemNameInput = document.getElementById('itemName');
+        const itemPriceInput = document.getElementById('itemPrice');
+
+        // As die streepkode verander (gescan of getik is), kyk of ons dit ken
+        barcodeInput.addEventListener('input', (e) => {
+            const code = e.target.value.trim();
+            if (barcodeMemory[code]) {
+                itemNameInput.value = barcodeMemory[code].name;
+                itemPriceInput.value = barcodeMemory[code].price;
+            }
         });
 
-        document.getElementById('ocrBtn').addEventListener('click', () => {
-            if (!window.Tesseract) {
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js';
-                script.onload = () => document.getElementById('ocrInput').click();
-                document.head.appendChild(script);
-            } else {
-                document.getElementById('ocrInput').click();
+        // ==========================================
+        // 2. KAMERA SKANDEERDER VIR STREEPKODES
+        // ==========================================
+        let html5QrcodeScanner = null;
+        document.getElementById('scanBtn').addEventListener('click', () => {
+            const readerDiv = document.getElementById('reader');
+            
+            // As die skandeerder reeds oop is, maak hom toe
+            if (readerDiv.style.display === 'block') {
+                if (html5QrcodeScanner) {
+                    html5QrcodeScanner.stop().then(() => {
+                        html5QrcodeScanner.clear();
+                        readerDiv.style.display = 'none';
+                    });
+                }
+                return;
             }
+            
+            // Maak oop en aktiveer kamera
+            readerDiv.style.display = 'block';
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            
+            html5QrcodeScanner.start(
+                { facingMode: "environment" }, // Gebruik die agterste kamera
+                { fps: 10, qrbox: { width: 250, height: 100 } },
+                (decodedText) => {
+                    // Suksesvol geskandeer!
+                    barcodeInput.value = decodedText;
+                    barcodeInput.dispatchEvent(new Event('input')); // Sneller die geheue om item in te vul
+                    
+                    // Stop die kamera
+                    html5QrcodeScanner.stop().then(() => {
+                        html5QrcodeScanner.clear();
+                        readerDiv.style.display = 'none';
+                    });
+                },
+                (errorMessage) => {
+                    // Ignoreer foute terwyl hy nog soek na die streepkode
+                }
+            ).catch((err) => {
+                readerDiv.style.display = 'none';
+                showAlert("Kamera kon nie oopmaak nie. Maak seker jy het toestemming gegee.");
+            });
+        });
+
+        // ==========================================
+        // 3. OCR (TEKSLESER)
+        // ==========================================
+        document.getElementById('ocrBtn').addEventListener('click', () => {
+            document.getElementById('ocrInput').click();
         });
 
         document.getElementById('ocrInput').addEventListener('change', async (event) => {
@@ -145,13 +190,19 @@
             if (file) {
                 const statusText = document.getElementById('ocrStatus');
                 statusText.classList.remove('hidden');
-                document.getElementById('itemName').value = ""; 
+                itemNameInput.value = ""; 
 
                 try {
+                    // Lees Engels en Afrikaans
                     const result = await Tesseract.recognize(file, 'eng+afr');
                     let recognizedText = result.data.text.trim().replace(/\n/g, ' '); 
-                    document.getElementById('itemName').value = recognizedText;
+                    
+                    // Beperk teks streng na maks 20 karakters
+                    recognizedText = recognizedText.substring(0, 20);
+                    
+                    itemNameInput.value = recognizedText;
                 } catch (error) {
+                    console.error("OCR Fout:", error);
                     showAlert("Kon nie die teks lees nie. Tik dit asseblief self in.");
                 } finally {
                     statusText.classList.add('hidden');
@@ -159,59 +210,18 @@
             }
         });
 
-        document.getElementById('photoBtn').addEventListener('click', () => {
-            document.getElementById('photoInput').click();
-        });
-
-        document.getElementById('photoInput').addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const img = new Image();
-                    img.onload = function() {
-                        const canvas = document.createElement('canvas');
-                        const MAX_WIDTH = 250; 
-                        const MAX_HEIGHT = 250;
-                        let width = img.width;
-                        let height = img.height;
-
-                        if (width > height) {
-                            if (width > MAX_WIDTH) {
-                                height *= MAX_WIDTH / width;
-                                width = MAX_WIDTH;
-                            }
-                        } else {
-                            if (height > MAX_HEIGHT) {
-                                width *= MAX_HEIGHT / height;
-                                height = MAX_HEIGHT;
-                            }
-                        }
-                        canvas.width = width;
-                        canvas.height = height;
-                        
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, width, height);
-                        capturedPhoto = canvas.toDataURL('image/jpeg', 0.2); 
-                        
-                        document.getElementById('photoStatus').classList.remove('hidden');
-                        document.getElementById('photoBtn').classList.add('bg-green-100', 'text-green-800');
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
+        // ==========================================
+        // 4. STOOR NA GOOGLE SHEETS EN GEHEUE
+        // ==========================================
         document.getElementById('submitBtn').addEventListener('click', function() {
             const currentDate = document.getElementById('dateInput').value;
-            const barcode = document.getElementById('barcodeInput').value.trim();
-            const itemName = document.getElementById('itemName').value.trim();
-            const price = document.getElementById('itemPrice').value.trim();
+            const barcode = barcodeInput.value.trim();
+            const itemName = itemNameInput.value.trim();
+            const price = itemPriceInput.value.trim();
             const quantity = document.getElementById('itemQuantity').value.trim();
 
             if (!barcode || !itemName || !price || !quantity) {
-                showAlert("Voltooi asseblief die Streepkode, Naam, Prys en Hoeveelheid.");
+                showAlert("Voltooi asseblief al die velde (Streepkode, Naam, Prys, Hoeveelheid).");
                 return;
             }
 
@@ -220,6 +230,11 @@
             btn.disabled = true;
             btn.classList.add('opacity-70');
 
+            // Stoor/Opdateer die item in die foon se geheue sodat hy dit volgende keer ken
+            barcodeMemory[barcode] = { name: itemName, price: price };
+            localStorage.setItem('geskenkMemory', JSON.stringify(barcodeMemory));
+
+            // Jou bestaande Google Apps Script URL
             const scriptURL = 'https://script.google.com/macros/s/AKfycbwMVykBnRoZHIBmHB-GR6E6lTsdlATrAMbAbF0eJgfuJpJjsIalKs03akQ0qK5jwSdH2Q/exec'; 
 
             const formData = new URLSearchParams();
@@ -228,7 +243,7 @@
             formData.append('itemName', itemName);
             formData.append('price', price);
             formData.append('quantity', quantity);
-            formData.append('photoUrl', capturedPhoto || "Geen foto");
+            formData.append('photoUrl', "Geen foto"); // Laat as "Geen foto" aangesien jy nie die foto-kolom uitgevee het nie
 
             fetch(scriptURL, {
                 method: 'POST',
@@ -236,21 +251,18 @@
                 body: formData
             })
             .then(() => {
-                document.getElementById('barcodeInput').value = '';
-                document.getElementById('itemName').value = '';
-                document.getElementById('itemPrice').value = '';
-                document.getElementById('itemQuantity').value = '';
-                document.getElementById('photoInput').value = '';
+                // Maak vorm skoon vir volgende item
+                barcodeInput.value = '';
+                itemNameInput.value = '';
+                itemPriceInput.value = '';
+                document.getElementById('itemQuantity').value = '1';
                 
-                document.getElementById('photoBtn').classList.remove('bg-green-100', 'text-green-800');
-                document.getElementById('photoStatus').classList.add('hidden');
-                capturedPhoto = "";
-                
-                document.getElementById('barcodeInput').focus();
+                barcodeInput.focus();
                 showAlert("Item is suksesvol gestoor in Google Sheets!");
             })
             .catch(error => {
-                showAlert("Kon nie die data stoor nie. Kontroleer jou internetkonneksie.");
+                console.error("Fout:", error);
+                showAlert("Kon nie stoor nie. Gaan jou internet na.");
             })
             .finally(() => {
                 btn.innerText = "Voeg by voorraad";
