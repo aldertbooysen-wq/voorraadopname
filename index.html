@@ -34,7 +34,7 @@
         <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;" onload="frameLoaded()"></iframe>
 
         <!-- Die vorm wys na jou spesifieke Google Apps Script URL -->
-        <form id="geskenkForm" target="hidden_iframe" action="https://script.google.com/macros/s/AKfycbxcp3mTzqzwSZsy3tmzMSL7t3BR4_Kwt3EehGoUmecP74DeZzbZdgvMI6OUFWOsxnutKQ/exec" method="POST" class="p-6 space-y-5">
+        <form id="geskenkForm" target="hidden_iframe" action="https://script.google.com/macros/s/AKfycbw84xZ40Zn2maJpK405-Pe0rBUdEjQcrTn_VOxb4R-VUASEDGL8313U0tY-d_1oneGXJA/exec" method="POST" class="p-6 space-y-5">
             
             <!-- Datum -->
             <div>
@@ -116,6 +116,9 @@
         </div>
     </div>
 
+    <!-- Hier is die ekstra canvas vir beeldverwerking -->
+    <canvas id="preprocessCanvas" style="display:none;"></canvas>
+
     <script>
         // Formateer datum
         const today = new Date();
@@ -176,7 +179,7 @@
             });
         });
 
-        // 3. OCR (KIES FOTO -> SNY BLOKKIE -> LEES)
+        // 3. OCR (KIES FOTO -> SNY BLOKKIE -> BEELDVERWERKING -> LEES)
         let cropper = null;
 
         document.getElementById('ocrBtn').addEventListener('click', () => {
@@ -203,17 +206,16 @@
                     cropper = new Cropper(imageElement, {
                         viewMode: 1,
                         dragMode: 'crop',
-                        autoCropArea: 0.5, // Begin met 'n 50% boks in die middel
+                        autoCropArea: 0.5,
                         background: false,
                         zoomable: true,
                         movable: true,
                     });
                 };
             }
-            event.target.value = ''; // Reset sodat jy dieselfde foto weer kan kies as jy wil
+            event.target.value = '';
         });
 
-        // Kanselleer die sny proses
         document.getElementById('cancelCropBtn').addEventListener('click', () => {
             document.getElementById('cropModal').classList.add('hidden');
             document.getElementById('cropModal').classList.remove('flex');
@@ -223,14 +225,12 @@
             }
         });
 
-        // Sny blokkie en pas die teksleser (OCR) toe
         document.getElementById('applyCropBtn').addEventListener('click', async () => {
             if (!cropper) return;
             
-            const canvas = cropper.getCroppedCanvas();
-            if (!canvas) return;
+            const originalCanvas = cropper.getCroppedCanvas();
+            if (!originalCanvas) return;
 
-            // Maak swart skerm toe en wys oranje flitsende laai boodskap
             document.getElementById('cropModal').classList.add('hidden');
             document.getElementById('cropModal').classList.remove('flex');
             
@@ -238,18 +238,38 @@
             statusText.classList.remove('hidden');
             document.getElementById('itemName').value = ""; 
 
-            const croppedDataUrl = canvas.toDataURL('image/jpeg');
+            // STAP 1: Beeldverwerking (Maak swart-en-wit en verhoog kontras)
+            const prepCanvas = document.getElementById('preprocessCanvas');
+            const ctx = prepCanvas.getContext('2d');
+            prepCanvas.width = originalCanvas.width;
+            prepCanvas.height = originalCanvas.height;
+            
+            // Teken die prent op die nuwe canvas en wend 'n filter aan (verhoog kontras aansienlik en maak dit grys)
+            ctx.filter = 'contrast(200%) grayscale(100%) brightness(120%)';
+            ctx.drawImage(originalCanvas, 0, 0);
+
+            const processedDataUrl = prepCanvas.toDataURL('image/jpeg');
             
             try {
-                const result = await Tesseract.recognize(croppedDataUrl, 'eng+afr');
+                // STAP 2: Tesseract met 'n Whitelist om hom te dwing om net by gewone karakters te bly
+                const worker = await Tesseract.createWorker('eng'); // Gebruik net eng vir meer basiese, streng herkenning
+                
+                // Beperk watter karakters herken mag word (geen leestekens buite letters/syfers nie)
+                await worker.setParameters({
+                    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 &-+',
+                });
+
+                const result = await worker.recognize(processedDataUrl);
                 let recognizedText = result.data.text.trim().replace(/\n/g, ' '); 
                 
-                // SLIM FILTER: Verwyder al die vreemde simbole (behou net letters, syfers en basiese leestekens soos - of &)
+                // STAP 3: Die Slim Filter bly, net om dubbel seker te maak daar kom niks snaaks deur nie.
                 recognizedText = recognizedText.replace(/[^a-zA-Z0-9\s\-%&]/g, '').trim();
                 
-                // Beperk tot jou maksimum 20 karakters
                 document.getElementById('itemName').value = recognizedText.substring(0, 20);
+
+                await worker.terminate(); // Maak skoon
             } catch (error) {
+                console.error("OCR fout:", error);
                 showAlert("Kon nie die teks lees nie.");
             } finally {
                 statusText.classList.add('hidden');
@@ -267,7 +287,6 @@
             const itemName = document.getElementById('itemName').value.trim();
             const price = document.getElementById('itemPrice').value.trim();
             
-            // Onthou hierdie nuwe item in die foon se geheue vir volgende keer
             barcodeMemory[barcode] = { name: itemName, price: price };
             localStorage.setItem('geskenkMemory', JSON.stringify(barcodeMemory));
 
@@ -278,12 +297,10 @@
             btn.classList.add('opacity-70');
         });
 
-        // Sodra die onsigbare iframe laai, weet ons Google het die inligting suksesvol ontvang
         function frameLoaded() {
             if (isSubmitted) {
                 isSubmitted = false;
                 
-                // Maak vorm se velde skoon vir die volgende item
                 document.getElementById('barcodeInput').value = '';
                 document.getElementById('itemName').value = '';
                 document.getElementById('itemPrice').value = '';
