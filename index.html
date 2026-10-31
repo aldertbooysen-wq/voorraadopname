@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geskenkwinkel Voorraad v2.1</title>
+    <title>Geskenkwinkel Voorraad v2.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
@@ -24,7 +24,7 @@
         
         <div class="bg-[#111827] text-white p-6 rounded-t-lg relative">
             <!-- Weergawe nommer regs bo -->
-            <span class="absolute top-4 right-4 bg-gray-700 text-gray-300 text-xs font-bold px-2 py-1 rounded">v2.1</span>
+            <span class="absolute top-4 right-4 bg-gray-700 text-gray-300 text-xs font-bold px-2 py-1 rounded">v2.2</span>
             
             <p class="text-[#f97316] text-xs font-bold tracking-widest uppercase mb-1">Ewige Lig</p>
             <h1 class="text-3xl font-serif font-bold mb-2">Geskenkwinkel</h1>
@@ -72,6 +72,7 @@
                 </div>
                 <input type="file" accept="image/*" capture="environment" id="ocrInput" class="hidden">
                 <p id="ocrStatus" class="text-[#ea580c] font-bold text-xs mt-2 hidden animate-pulse text-right">Besig om teks te lees...</p>
+                <p id="photoAttachedMsg" class="text-green-600 font-bold text-xs mt-2 hidden text-right">✓ Foto gestoor vir sigblad</p>
             </div>
 
             <!-- Prys en Hoeveelheid -->
@@ -86,7 +87,7 @@
                 </div>
             </div>
             
-            <input type="hidden" name="foto" value="Geen foto">
+            <input type="hidden" name="foto" id="fotoInput" value="Geen foto">
 
             <!-- Submit -->
             <div class="pt-4">
@@ -238,10 +239,17 @@
             document.getElementById('cropModal').classList.remove('flex');
             
             const statusText = document.getElementById('ocrStatus');
+            const attachedMsg = document.getElementById('photoAttachedMsg');
             statusText.classList.remove('hidden');
+            attachedMsg.classList.add('hidden');
             document.getElementById('itemName').value = ""; 
 
-            // STAP 1: Beeldverwerking (Maak swart-en-wit en verhoog kontras)
+            // Stoor die oorspronklike gesnyde foto (in kleur) vir die Google Sheet 
+            // Gebruik laer kwaliteit (0.3) sodat dit as teks in een sel in Google Sheets pas!
+            const sheetPhotoDataUrl = originalCanvas.toDataURL('image/jpeg', 0.3);
+            document.getElementById('fotoInput').value = sheetPhotoDataUrl;
+
+            // STAP 1: Beeldverwerking vir die OCR (Maak swart-en-wit en verhoog kontras)
             const prepCanvas = document.getElementById('preprocessCanvas');
             const ctx = prepCanvas.getContext('2d');
             prepCanvas.width = originalCanvas.width;
@@ -254,22 +262,16 @@
             const processedDataUrl = prepCanvas.toDataURL('image/jpeg');
             
             try {
-                // STAP 2: Tesseract met 'n Whitelist
-                const worker = await Tesseract.createWorker('eng'); 
-                
-                await worker.setParameters({
-                    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 &-+',
-                });
-
-                const result = await worker.recognize(processedDataUrl);
+                // STAP 2: Lees teks (Terug na die veilige metode wat op alle fone werk)
+                const result = await Tesseract.recognize(processedDataUrl, 'eng');
                 let recognizedText = result.data.text.trim().replace(/\n/g, ' '); 
                 
                 // STAP 3: Die Slim Filter
                 recognizedText = recognizedText.replace(/[^a-zA-Z0-9\s\-%&]/g, '').trim();
                 
                 document.getElementById('itemName').value = recognizedText.substring(0, 20);
+                attachedMsg.classList.remove('hidden'); // Wys vir gebruiker die foto is aangeheg
 
-                await worker.terminate(); // Maak skoon
             } catch (error) {
                 console.error("OCR fout:", error);
                 showAlert("Kon nie die teks lees nie.");
@@ -307,6 +309,8 @@
                 document.getElementById('itemName').value = '';
                 document.getElementById('itemPrice').value = '';
                 document.getElementById('itemQuantity').value = '1';
+                document.getElementById('fotoInput').value = 'Geen foto';
+                document.getElementById('photoAttachedMsg').classList.add('hidden');
                 
                 const btn = document.getElementById('submitBtn');
                 btn.innerText = "Voeg by voorraad";
