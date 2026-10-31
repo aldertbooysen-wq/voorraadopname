@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geskenkwinkel Voorraad</title>
+    <title>Geskenkwinkel Voorraad v2.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
@@ -22,7 +22,10 @@
 
     <div class="bg-white rounded-lg shadow-lg w-full max-w-md overflow-hidden border border-gray-200">
         
-        <div class="bg-[#111827] text-white p-6 rounded-t-lg">
+        <div class="bg-[#111827] text-white p-6 rounded-t-lg relative">
+            <!-- Weergawe nommer regs bo -->
+            <span class="absolute top-4 right-4 bg-gray-700 text-gray-300 text-xs font-bold px-2 py-1 rounded">v2.1</span>
+            
             <p class="text-[#f97316] text-xs font-bold tracking-widest uppercase mb-1">Ewige Lig</p>
             <h1 class="text-3xl font-serif font-bold mb-2">Geskenkwinkel</h1>
             <p class="text-gray-300 text-sm leading-relaxed">
@@ -31,9 +34,9 @@
         </div>
 
         <!-- Die onsigbare iframe wat die Google Sheets blokkasie omseil -->
-        <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;" onload="frameLoaded()"></iframe>
+        <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
 
-        <!-- Die vorm wys na jou spesifieke Google Apps Script URL -->
+        <!-- Die vorm wys na jou LAASTE spesifieke Google Apps Script URL -->
         <form id="geskenkForm" target="hidden_iframe" action="https://script.google.com/macros/s/AKfycbxcp3mTzqzwSZsy3tmzMSL7t3BR4_Kwt3EehGoUmecP74DeZzbZdgvMI6OUFWOsxnutKQ/exec" method="POST" class="p-6 space-y-5">
             
             <!-- Datum -->
@@ -244,17 +247,16 @@
             prepCanvas.width = originalCanvas.width;
             prepCanvas.height = originalCanvas.height;
             
-            // Teken die prent op die nuwe canvas en wend 'n filter aan (verhoog kontras aansienlik en maak dit grys)
+            // Teken die prent op die nuwe canvas en wend 'n filter aan
             ctx.filter = 'contrast(200%) grayscale(100%) brightness(120%)';
             ctx.drawImage(originalCanvas, 0, 0);
 
             const processedDataUrl = prepCanvas.toDataURL('image/jpeg');
             
             try {
-                // STAP 2: Tesseract met 'n Whitelist om hom te dwing om net by gewone karakters te bly
-                const worker = await Tesseract.createWorker('eng'); // Gebruik net eng vir meer basiese, streng herkenning
+                // STAP 2: Tesseract met 'n Whitelist
+                const worker = await Tesseract.createWorker('eng'); 
                 
-                // Beperk watter karakters herken mag word (geen leestekens buite letters/syfers nie)
                 await worker.setParameters({
                     tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 &-+',
                 });
@@ -262,7 +264,7 @@
                 const result = await worker.recognize(processedDataUrl);
                 let recognizedText = result.data.text.trim().replace(/\n/g, ' '); 
                 
-                // STAP 3: Die Slim Filter bly, net om dubbel seker te maak daar kom niks snaaks deur nie.
+                // STAP 3: Die Slim Filter
                 recognizedText = recognizedText.replace(/[^a-zA-Z0-9\s\-%&]/g, '').trim();
                 
                 document.getElementById('itemName').value = recognizedText.substring(0, 20);
@@ -315,6 +317,9 @@
                 showAlert("Sukses! Die item is by jou Google Sheet gevoeg.");
             }
         }
+
+        // Koppel die 'load' event hier sodat die funksie verseker reeds bestaan
+        document.getElementById('hidden_iframe').addEventListener('load', frameLoaded);
     </script>
 </body>
 </html>
