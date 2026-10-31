@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Geskenkwinkel Voorraad</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Biblioteek vir die Streepkode Skandeerder via Kamera -->
     <script src="https://unpkg.com/html5-qrcode"></script>
-    <!-- Biblioteek vir OCR (Teksleser) -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap');
@@ -27,35 +25,38 @@
             </p>
         </div>
 
-        <div class="p-6 space-y-5">
+        <!-- Die onsigbare iframe wat die Google Sheets blokkasie omseil -->
+        <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;" onload="frameLoaded()"></iframe>
+
+        <!-- Die vorm wys na jou NUWE spesifieke Google Apps Script URL -->
+        <form id="geskenkForm" target="hidden_iframe" action="https://script.google.com/macros/s/AKfycbyG8DfLzPkIVc1-N4iMR2idWaYqIIlfyMRh-mqnSguX__htXeWxbkZKs1aH_rDiy2Uk3g/exec" method="POST" class="p-6 space-y-5">
             
             <!-- Datum -->
             <div>
                 <label class="block text-gray-800 text-sm font-semibold mb-2">Datum</label>
-                <input type="text" id="dateInput" class="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 focus:outline-none" readonly>
+                <input type="text" name="date" id="dateInput" class="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 focus:outline-none" readonly>
             </div>
 
             <!-- Streepkode -->
             <div>
                 <label class="block text-gray-800 text-sm font-semibold mb-2">Streepkode</label>
                 <div class="relative">
-                    <input type="text" id="barcodeInput" placeholder="Bv. 600123456789" class="w-full px-4 py-3 pr-12 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
+                    <input type="text" name="barcode" id="barcodeInput" placeholder="Bv. 600123456789" required class="w-full px-4 py-3 pr-12 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
                     <button id="scanBtn" type="button" class="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded-md transition-colors" title="Skandeer met kamera">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m-8-8h16M4 8h.01M4 16h.01M20 8h.01M20 16h.01M8 4h.01M16 4h.01M8 20h.01M16 20h.01"></path>
                         </svg>
                     </button>
                 </div>
-                <!-- Venster vir die kamera om oop te maak -->
+                <!-- Kamera blok vir streepkode -->
                 <div id="reader" class="mt-2 rounded-lg border border-gray-300 overflow-hidden"></div>
             </div>
 
-            <!-- Item Naam (OCR met 20 Karakter Limiet) -->
+            <!-- Item Naam -->
             <div>
                 <label class="block text-gray-800 text-sm font-semibold mb-2">Item Naam (Maks 20 letters)</label>
                 <div class="relative">
-                    <!-- maxlength verseker jy kan self nie meer as 20 letters tik nie -->
-                    <input type="text" id="itemName" maxlength="20" placeholder="Bv. Groot Bybel" class="w-full px-4 py-3 pr-12 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
+                    <input type="text" name="itemName" id="itemName" maxlength="20" placeholder="Bv. Groot Bybel" required class="w-full px-4 py-3 pr-12 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
                     <button id="ocrBtn" type="button" class="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-[#ea580c] bg-gray-50 hover:bg-orange-50 rounded-md transition-colors" title="Lees naam met OCR">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
@@ -70,21 +71,21 @@
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-gray-800 text-sm font-semibold mb-2">Prys (R)</label>
-                    <input type="number" id="itemPrice" placeholder="0.00" step="0.01" class="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
+                    <input type="number" name="price" id="itemPrice" placeholder="0.00" step="0.01" required class="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
                 </div>
                 <div>
                     <label class="block text-gray-800 text-sm font-semibold mb-2">Hoeveelheid</label>
-                    <input type="number" id="itemQuantity" placeholder="1" value="1" class="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
+                    <input type="number" name="quantity" id="itemQuantity" placeholder="1" value="1" required class="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
                 </div>
             </div>
 
             <!-- Submit -->
             <div class="pt-4">
-                <button id="submitBtn" type="button" class="w-full bg-[#ea580c] hover:bg-[#c2410c] text-white font-bold py-4 px-4 rounded-lg transition-colors">
+                <button type="submit" id="submitBtn" class="w-full bg-[#ea580c] hover:bg-[#c2410c] text-white font-bold py-4 px-4 rounded-lg transition-colors">
                     Voeg by voorraad
                 </button>
             </div>
-        </div>
+        </form>
     </div>
 
     <!-- Modale Waarskuwing -->
@@ -98,16 +99,13 @@
     </div>
 
     <script>
-        // Formateer die datum
+        // Formateer datum
         const today = new Date();
-        const yyyy = today.getFullYear();
-        let mm = today.getMonth() + 1;
-        let dd = today.getDate();
-        if (dd < 10) dd = '0' + dd;
-        if (mm < 10) mm = '0' + mm;
-        document.getElementById('dateInput').value = dd + '/' + mm + '/' + yyyy;
+        let dd = String(today.getDate()).padStart(2, '0');
+        let mm = String(today.getMonth() + 1).padStart(2, '0');
+        document.getElementById('dateInput').value = dd + '/' + mm + '/' + today.getFullYear();
 
-        // Custom Alert 
+        // Custom Alert
         function showAlert(message) {
             document.getElementById('alertMessage').innerText = message;
             document.getElementById('alertModal').classList.remove('hidden');
@@ -116,31 +114,22 @@
             document.getElementById('alertModal').classList.add('hidden');
         });
 
-        // ==========================================
-        // 1. STREEPKODE GEHEUE ("LEER" FUNKSIE)
-        // ==========================================
+        // 1. STREEPKODE GEHEUE (Leer)
         let barcodeMemory = JSON.parse(localStorage.getItem('geskenkMemory')) || {};
         const barcodeInput = document.getElementById('barcodeInput');
-        const itemNameInput = document.getElementById('itemName');
-        const itemPriceInput = document.getElementById('itemPrice');
-
-        // As die streepkode verander (gescan of getik is), kyk of ons dit ken
+        
         barcodeInput.addEventListener('input', (e) => {
             const code = e.target.value.trim();
             if (barcodeMemory[code]) {
-                itemNameInput.value = barcodeMemory[code].name;
-                itemPriceInput.value = barcodeMemory[code].price;
+                document.getElementById('itemName').value = barcodeMemory[code].name;
+                document.getElementById('itemPrice').value = barcodeMemory[code].price;
             }
         });
 
-        // ==========================================
-        // 2. KAMERA SKANDEERDER VIR STREEPKODES
-        // ==========================================
+        // 2. KAMERA SKANDEERDER (Vereis HTTPS)
         let html5QrcodeScanner = null;
         document.getElementById('scanBtn').addEventListener('click', () => {
             const readerDiv = document.getElementById('reader');
-            
-            // As die skandeerder reeds oop is, maak hom toe
             if (readerDiv.style.display === 'block') {
                 if (html5QrcodeScanner) {
                     html5QrcodeScanner.stop().then(() => {
@@ -150,126 +139,84 @@
                 }
                 return;
             }
-            
-            // Maak oop en aktiveer kamera
             readerDiv.style.display = 'block';
             html5QrcodeScanner = new Html5Qrcode("reader");
-            
             html5QrcodeScanner.start(
-                { facingMode: "environment" }, // Gebruik die agterste kamera
+                { facingMode: "environment" },
                 { fps: 10, qrbox: { width: 250, height: 100 } },
                 (decodedText) => {
-                    // Suksesvol geskandeer!
                     barcodeInput.value = decodedText;
-                    barcodeInput.dispatchEvent(new Event('input')); // Sneller die geheue om item in te vul
-                    
-                    // Stop die kamera
+                    barcodeInput.dispatchEvent(new Event('input'));
                     html5QrcodeScanner.stop().then(() => {
                         html5QrcodeScanner.clear();
                         readerDiv.style.display = 'none';
                     });
                 },
-                (errorMessage) => {
-                    // Ignoreer foute terwyl hy nog soek na die streepkode
-                }
+                (error) => {}
             ).catch((err) => {
                 readerDiv.style.display = 'none';
-                showAlert("Kamera kon nie oopmaak nie. Maak seker jy het toestemming gegee.");
+                showAlert("Kamera geblokkeer. Jou blaaier vereis 'n veilige verbinding (https://) of toestemming.");
             });
         });
 
-        // ==========================================
-        // 3. OCR (TEKSLESER)
-        // ==========================================
-        document.getElementById('ocrBtn').addEventListener('click', () => {
-            document.getElementById('ocrInput').click();
-        });
-
+        // 3. OCR (Teksleser via Foto-oplaai)
+        document.getElementById('ocrBtn').addEventListener('click', () => document.getElementById('ocrInput').click());
         document.getElementById('ocrInput').addEventListener('change', async (event) => {
             const file = event.target.files[0];
             if (file) {
                 const statusText = document.getElementById('ocrStatus');
                 statusText.classList.remove('hidden');
-                itemNameInput.value = ""; 
-
+                document.getElementById('itemName').value = ""; 
                 try {
-                    // Lees Engels en Afrikaans
                     const result = await Tesseract.recognize(file, 'eng+afr');
                     let recognizedText = result.data.text.trim().replace(/\n/g, ' '); 
-                    
-                    // Beperk teks streng na maks 20 karakters
-                    recognizedText = recognizedText.substring(0, 20);
-                    
-                    itemNameInput.value = recognizedText;
+                    document.getElementById('itemName').value = recognizedText.substring(0, 20);
                 } catch (error) {
-                    console.error("OCR Fout:", error);
-                    showAlert("Kon nie die teks lees nie. Tik dit asseblief self in.");
+                    showAlert("Kon nie die teks lees nie.");
                 } finally {
                     statusText.classList.add('hidden');
                 }
             }
         });
 
-        // ==========================================
-        // 4. STOOR NA GOOGLE SHEETS EN GEHEUE
-        // ==========================================
-        document.getElementById('submitBtn').addEventListener('click', function() {
-            const currentDate = document.getElementById('dateInput').value;
-            const barcode = barcodeInput.value.trim();
-            const itemName = itemNameInput.value.trim();
-            const price = itemPriceInput.value.trim();
-            const quantity = document.getElementById('itemQuantity').value.trim();
+        // 4. VORM SUBMIT (Via onsigbare Iframe)
+        let isSubmitted = false;
+        document.getElementById('geskenkForm').addEventListener('submit', () => {
+            const barcode = document.getElementById('barcodeInput').value.trim();
+            const itemName = document.getElementById('itemName').value.trim();
+            const price = document.getElementById('itemPrice').value.trim();
+            
+            // Onthou in geheue vir volgende keer
+            barcodeMemory[barcode] = { name: itemName, price: price };
+            localStorage.setItem('geskenkMemory', JSON.stringify(barcodeMemory));
 
-            if (!barcode || !itemName || !price || !quantity) {
-                showAlert("Voltooi asseblief al die velde (Streepkode, Naam, Prys, Hoeveelheid).");
-                return;
-            }
-
+            isSubmitted = true;
             const btn = document.getElementById('submitBtn');
             btn.innerText = "Besig om te stoor...";
             btn.disabled = true;
             btn.classList.add('opacity-70');
+        });
 
-            // Stoor/Opdateer die item in die foon se geheue sodat hy dit volgende keer ken
-            barcodeMemory[barcode] = { name: itemName, price: price };
-            localStorage.setItem('geskenkMemory', JSON.stringify(barcodeMemory));
-
-            // Jou bestaande Google Apps Script URL
-            const scriptURL = 'https://script.google.com/macros/s/AKfycbwMVykBnRoZHIBmHB-GR6E6lTsdlATrAMbAbF0eJgfuJpJjsIalKs03akQ0qK5jwSdH2Q/exec'; 
-
-            const formData = new URLSearchParams();
-            formData.append('date', currentDate);
-            formData.append('barcode', barcode);
-            formData.append('itemName', itemName);
-            formData.append('price', price);
-            formData.append('quantity', quantity);
-            formData.append('photoUrl', "Geen foto"); // Laat as "Geen foto" aangesien jy nie die foto-kolom uitgevee het nie
-
-            fetch(scriptURL, {
-                method: 'POST',
-                mode: 'no-cors',
-                body: formData
-            })
-            .then(() => {
-                // Maak vorm skoon vir volgende item
-                barcodeInput.value = '';
-                itemNameInput.value = '';
-                itemPriceInput.value = '';
+        // Sodra die onsigbare iframe laai, weet ons Google het die inligting ontvang
+        function frameLoaded() {
+            if (isSubmitted) {
+                isSubmitted = false;
+                
+                // Maak velde skoon
+                document.getElementById('barcodeInput').value = '';
+                document.getElementById('itemName').value = '';
+                document.getElementById('itemPrice').value = '';
                 document.getElementById('itemQuantity').value = '1';
                 
-                barcodeInput.focus();
-                showAlert("Item is suksesvol gestoor in Google Sheets!");
-            })
-            .catch(error => {
-                console.error("Fout:", error);
-                showAlert("Kon nie stoor nie. Gaan jou internet na.");
-            })
-            .finally(() => {
+                const btn = document.getElementById('submitBtn');
                 btn.innerText = "Voeg by voorraad";
                 btn.disabled = false;
                 btn.classList.remove('opacity-70');
-            });
-        });
+
+                document.getElementById('barcodeInput').focus();
+                showAlert("Sukses! Die item is by jou Google Sheet gevoeg.");
+            }
+        }
     </script>
 </body>
 </html>
