@@ -59,20 +59,10 @@
                 <div id="reader" class="mt-2 rounded-lg border border-gray-300 overflow-hidden"></div>
             </div>
 
-            <!-- Item Naam met Kamera Opsie -->
+            <!-- Item Naam -->
             <div>
                 <label class="block text-gray-800 text-sm font-semibold mb-2">Item Naam (Maks 35 letters)</label>
-                <div class="relative">
-                    <input type="text" name="itemName" id="itemName" maxlength="35" placeholder="Bv. Groot Bybel" required class="w-full px-4 py-3 pr-12 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
-                    <button id="ocrBtn" type="button" class="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-[#ea580c] bg-gray-50 hover:bg-orange-50 rounded-md transition-colors" title="Lees naam met OCR">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
-                        </svg>
-                    </button>
-                </div>
-                <input type="file" accept="image/*" capture="environment" id="ocrInput" class="hidden">
-                <p id="ocrStatus" class="text-[#ea580c] font-bold text-xs mt-2 hidden animate-pulse text-right">Besig om teks te lees...</p>
-                <p id="photoAttachedMsg" class="text-green-600 font-bold text-xs mt-2 hidden text-right">✓ Foto gestoor vir sigblad</p>
+                <input type="text" name="itemName" id="itemName" maxlength="35" placeholder="Bv. Groot Bybel" required class="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
             </div>
 
             <!-- Prys en Hoeveelheid -->
@@ -86,8 +76,6 @@
                     <input type="number" name="aantal" id="itemQuantity" placeholder="1" value="1" required class="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
                 </div>
             </div>
-            
-            <input type="hidden" name="foto" id="fotoInput" value="Geen foto">
 
             <!-- Submit -->
             <div class="pt-4">
@@ -96,18 +84,6 @@
                 </button>
             </div>
         </form>
-    </div>
-
-    <!-- Sny (Crop) Modaal -->
-    <div id="cropModal" class="fixed inset-0 bg-black z-[100] hidden flex-col">
-        <div class="flex-1 w-full overflow-hidden flex items-center justify-center p-2">
-            <img id="cropImage" src="" alt="Crop preview" class="max-w-full max-h-full block">
-        </div>
-        <div class="bg-gray-900 p-4 flex justify-between items-center text-white pb-8">
-            <button type="button" id="cancelCropBtn" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded font-bold">Kanselleer</button>
-            <span class="text-xs md:text-sm font-semibold text-gray-300 mx-2 text-center">Trek blokkie oor naam</span>
-            <button type="button" id="applyCropBtn" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded font-bold">Lees Teks</button>
-        </div>
     </div>
 
     <!-- Waarskuwing Modaal -->
@@ -119,9 +95,6 @@
             </button>
         </div>
     </div>
-
-    <!-- Hier is die ekstra canvas vir beeldverwerking -->
-    <canvas id="preprocessCanvas" style="display:none;"></canvas>
 
     <script>
         // Formateer datum
@@ -183,124 +156,7 @@
             });
         });
 
-        // 3. OCR (KIES FOTO -> SNY BLOKKIE -> BEELDVERWERKING -> LEES)
-        let cropper = null;
-
-        document.getElementById('ocrBtn').addEventListener('click', () => {
-            document.getElementById('ocrInput').click();
-        });
-
-        document.getElementById('ocrInput').addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                const url = URL.createObjectURL(file);
-                const imageElement = document.getElementById('cropImage');
-                imageElement.src = url;
-                
-                // Maak die swart sny-modaal oop
-                document.getElementById('cropModal').classList.remove('hidden');
-                document.getElementById('cropModal').classList.add('flex');
-
-                if (cropper) {
-                    cropper.destroy();
-                }
-
-                // Begin cropper sodra die foto gelaai is
-                imageElement.onload = () => {
-                    cropper = new Cropper(imageElement, {
-                        viewMode: 1,
-                        dragMode: 'crop',
-                        autoCropArea: 0.5,
-                        background: false,
-                        zoomable: true,
-                        movable: true,
-                    });
-                };
-            }
-            event.target.value = '';
-        });
-
-        document.getElementById('cancelCropBtn').addEventListener('click', () => {
-            document.getElementById('cropModal').classList.add('hidden');
-            document.getElementById('cropModal').classList.remove('flex');
-            if (cropper) {
-                cropper.destroy();
-                cropper = null;
-            }
-        });
-
-        document.getElementById('applyCropBtn').addEventListener('click', async () => {
-            if (!cropper) return;
-            
-            const originalCanvas = cropper.getCroppedCanvas();
-            if (!originalCanvas) return;
-
-            document.getElementById('cropModal').classList.add('hidden');
-            document.getElementById('cropModal').classList.remove('flex');
-            
-            const statusText = document.getElementById('ocrStatus');
-            const attachedMsg = document.getElementById('photoAttachedMsg');
-            statusText.classList.remove('hidden');
-            attachedMsg.classList.add('hidden');
-            document.getElementById('itemName').value = ""; 
-
-            // --- NUWE KODE: Maak eers die prentjie kleiner sodat dit Google nie oorlaai nie ---
-            const MAX_WIDTH = 600;
-            let width = originalCanvas.width;
-            let height = originalCanvas.height;
-            
-            if (width > MAX_WIDTH) {
-                height = Math.round((height * MAX_WIDTH) / width);
-                width = MAX_WIDTH;
-            }
-            
-            const resizedCanvas = document.createElement('canvas');
-            resizedCanvas.width = width;
-            resizedCanvas.height = height;
-            const resCtx = resizedCanvas.getContext('2d');
-            resCtx.drawImage(originalCanvas, 0, 0, width, height);
-
-            // Stoor die verkleinde prentjie vir die Google Sheet (met effens beter gehalte nou dat hy kleiner is)
-            const sheetPhotoDataUrl = resizedCanvas.toDataURL('image/jpeg', 0.6);
-            document.getElementById('fotoInput').value = sheetPhotoDataUrl;
-            // ----------------------------------------------------------------------------------
-
-            // STAP 1: Beeldverwerking vir die OCR (Maak swart-en-wit en verhoog kontras)
-            const prepCanvas = document.getElementById('preprocessCanvas');
-            const ctx = prepCanvas.getContext('2d');
-            prepCanvas.width = originalCanvas.width;
-            prepCanvas.height = originalCanvas.height;
-            
-            // Teken die prent op die nuwe canvas en wend 'n filter aan
-            ctx.filter = 'contrast(200%) grayscale(100%) brightness(120%)';
-            ctx.drawImage(originalCanvas, 0, 0);
-
-            const processedDataUrl = prepCanvas.toDataURL('image/jpeg');
-            
-            try {
-                // STAP 2: Lees teks (Terug na die veilige metode wat op alle fone werk)
-                const result = await Tesseract.recognize(processedDataUrl, 'eng');
-                let recognizedText = result.data.text.trim().replace(/\n/g, ' '); 
-                
-                // STAP 3: Die Slim Filter
-                recognizedText = recognizedText.replace(/[^a-zA-Z0-9\s\-%&]/g, '').trim();
-                
-                document.getElementById('itemName').value = recognizedText.substring(0, 35);
-                attachedMsg.classList.remove('hidden'); // Wys vir gebruiker die foto is aangeheg
-
-            } catch (error) {
-                console.error("OCR fout:", error);
-                showAlert("Kon nie die teks lees nie.");
-            } finally {
-                statusText.classList.add('hidden');
-                if (cropper) {
-                    cropper.destroy();
-                    cropper = null;
-                }
-            }
-        });
-
-        // 4. VORM SUBMIT (Stuur na Google Sheets via onsigbare Iframe)
+        // 3. VORM SUBMIT (Stuur na Google Sheets via onsigbare Iframe)
         let isSubmitted = false;
         document.getElementById('geskenkForm').addEventListener('submit', () => {
             const barcode = document.getElementById('barcodeInput').value.trim();
@@ -325,8 +181,6 @@
                 document.getElementById('itemName').value = '';
                 document.getElementById('itemPrice').value = '';
                 document.getElementById('itemQuantity').value = '1';
-                document.getElementById('fotoInput').value = 'Geen foto';
-                document.getElementById('photoAttachedMsg').classList.add('hidden');
                 
                 const btn = document.getElementById('submitBtn');
                 btn.innerText = "Voeg by voorraad";
@@ -338,7 +192,6 @@
             }
         }
 
-        // Koppel die 'load' event hier sodat die funksie verseker reeds bestaan
         document.getElementById('hidden_iframe').addEventListener('load', frameLoaded);
     </script>
 </body>
