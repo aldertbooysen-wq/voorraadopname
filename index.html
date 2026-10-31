@@ -7,6 +7,11 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    
+    <!-- Voeg Cropper.js by vir die sny-blokkie -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap');
         .font-serif { font-family: 'Merriweather', serif; }
@@ -28,7 +33,7 @@
         <!-- Die onsigbare iframe wat die Google Sheets blokkasie omseil -->
         <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;" onload="frameLoaded()"></iframe>
 
-        <!-- Die vorm wys na jou NUWE spesifieke Google Apps Script URL -->
+        <!-- Die vorm wys na jou spesifieke Google Apps Script URL -->
         <form id="geskenkForm" target="hidden_iframe" action="https://script.google.com/macros/s/AKfycbxcp3mTzqzwSZsy3tmzMSL7t3BR4_Kwt3EehGoUmecP74DeZzbZdgvMI6OUFWOsxnutKQ/exec" method="POST" class="p-6 space-y-5">
             
             <!-- Datum -->
@@ -48,11 +53,10 @@
                         </svg>
                     </button>
                 </div>
-                <!-- Kamera blok vir streepkode -->
                 <div id="reader" class="mt-2 rounded-lg border border-gray-300 overflow-hidden"></div>
             </div>
 
-            <!-- Item Naam -->
+            <!-- Item Naam met Kamera Opsie -->
             <div>
                 <label class="block text-gray-800 text-sm font-semibold mb-2">Item Naam (Maks 20 letters)</label>
                 <div class="relative">
@@ -74,10 +78,12 @@
                     <input type="number" name="price" id="itemPrice" placeholder="0.00" step="0.01" required class="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
                 </div>
                 <div>
-                    <label class="block text-gray-800 text-sm font-semibold mb-2">Hoeveelheid</label>
-                    <input type="number" name="quantity" id="itemQuantity" placeholder="1" value="1" required class="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
+                    <label class="block text-gray-800 text-sm font-semibold mb-2">Aantal</label>
+                    <input type="number" name="aantal" id="itemQuantity" placeholder="1" value="1" required class="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
                 </div>
             </div>
+            
+            <input type="hidden" name="foto" value="Geen foto">
 
             <!-- Submit -->
             <div class="pt-4">
@@ -88,8 +94,20 @@
         </form>
     </div>
 
-    <!-- Modale Waarskuwing -->
-    <div id="alertModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+    <!-- Sny (Crop) Modaal -->
+    <div id="cropModal" class="fixed inset-0 bg-black z-[100] hidden flex-col">
+        <div class="flex-1 w-full overflow-hidden flex items-center justify-center p-2">
+            <img id="cropImage" src="" alt="Crop preview" class="max-w-full max-h-full block">
+        </div>
+        <div class="bg-gray-900 p-4 flex justify-between items-center text-white pb-8">
+            <button type="button" id="cancelCropBtn" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded font-bold">Kanselleer</button>
+            <span class="text-xs md:text-sm font-semibold text-gray-300 mx-2 text-center">Trek blokkie oor naam</span>
+            <button type="button" id="applyCropBtn" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded font-bold">Lees Teks</button>
+        </div>
+    </div>
+
+    <!-- Waarskuwing Modaal -->
+    <div id="alertModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-[110]">
         <div class="bg-white rounded-lg p-6 max-w-sm w-11/12 text-center shadow-xl">
             <h3 class="mb-5 text-lg font-bold text-gray-800" id="alertMessage">Boodskap</h3>
             <button id="closeAlertBtn" type="button" class="text-white bg-[#ea580c] hover:bg-[#c2410c] font-medium rounded-lg text-sm px-5 py-2.5">
@@ -105,7 +123,6 @@
         let mm = String(today.getMonth() + 1).padStart(2, '0');
         document.getElementById('dateInput').value = dd + '/' + mm + '/' + today.getFullYear();
 
-        // Custom Alert
         function showAlert(message) {
             document.getElementById('alertMessage').innerText = message;
             document.getElementById('alertModal').classList.remove('hidden');
@@ -126,7 +143,7 @@
             }
         });
 
-        // 2. KAMERA SKANDEERDER (Vereis HTTPS)
+        // 2. KAMERA SKANDEERDER VIR STREEPKODES
         let html5QrcodeScanner = null;
         document.getElementById('scanBtn').addEventListener('click', () => {
             const readerDiv = document.getElementById('reader');
@@ -159,34 +176,98 @@
             });
         });
 
-        // 3. OCR (Teksleser via Foto-oplaai)
-        document.getElementById('ocrBtn').addEventListener('click', () => document.getElementById('ocrInput').click());
-        document.getElementById('ocrInput').addEventListener('change', async (event) => {
+        // 3. OCR (KIES FOTO -> SNY BLOKKIE -> LEES)
+        let cropper = null;
+
+        document.getElementById('ocrBtn').addEventListener('click', () => {
+            document.getElementById('ocrInput').click();
+        });
+
+        document.getElementById('ocrInput').addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file) {
-                const statusText = document.getElementById('ocrStatus');
-                statusText.classList.remove('hidden');
-                document.getElementById('itemName').value = ""; 
-                try {
-                    const result = await Tesseract.recognize(file, 'eng+afr');
-                    let recognizedText = result.data.text.trim().replace(/\n/g, ' '); 
-                    document.getElementById('itemName').value = recognizedText.substring(0, 20);
-                } catch (error) {
-                    showAlert("Kon nie die teks lees nie.");
-                } finally {
-                    statusText.classList.add('hidden');
+                const url = URL.createObjectURL(file);
+                const imageElement = document.getElementById('cropImage');
+                imageElement.src = url;
+                
+                // Maak die swart sny-modaal oop
+                document.getElementById('cropModal').classList.remove('hidden');
+                document.getElementById('cropModal').classList.add('flex');
+
+                if (cropper) {
+                    cropper.destroy();
+                }
+
+                // Begin cropper sodra die foto gelaai is
+                imageElement.onload = () => {
+                    cropper = new Cropper(imageElement, {
+                        viewMode: 1,
+                        dragMode: 'crop',
+                        autoCropArea: 0.5, // Begin met 'n 50% boks in die middel
+                        background: false,
+                        zoomable: true,
+                        movable: true,
+                    });
+                };
+            }
+            event.target.value = ''; // Reset sodat jy dieselfde foto weer kan kies as jy wil
+        });
+
+        // Kanselleer die sny proses
+        document.getElementById('cancelCropBtn').addEventListener('click', () => {
+            document.getElementById('cropModal').classList.add('hidden');
+            document.getElementById('cropModal').classList.remove('flex');
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+        });
+
+        // Sny blokkie en pas die teksleser (OCR) toe
+        document.getElementById('applyCropBtn').addEventListener('click', async () => {
+            if (!cropper) return;
+            
+            const canvas = cropper.getCroppedCanvas();
+            if (!canvas) return;
+
+            // Maak swart skerm toe en wys oranje flitsende laai boodskap
+            document.getElementById('cropModal').classList.add('hidden');
+            document.getElementById('cropModal').classList.remove('flex');
+            
+            const statusText = document.getElementById('ocrStatus');
+            statusText.classList.remove('hidden');
+            document.getElementById('itemName').value = ""; 
+
+            const croppedDataUrl = canvas.toDataURL('image/jpeg');
+            
+            try {
+                const result = await Tesseract.recognize(croppedDataUrl, 'eng+afr');
+                let recognizedText = result.data.text.trim().replace(/\n/g, ' '); 
+                
+                // SLIM FILTER: Verwyder al die vreemde simbole (behou net letters, syfers en basiese leestekens soos - of &)
+                recognizedText = recognizedText.replace(/[^a-zA-Z0-9\s\-%&]/g, '').trim();
+                
+                // Beperk tot jou maksimum 20 karakters
+                document.getElementById('itemName').value = recognizedText.substring(0, 20);
+            } catch (error) {
+                showAlert("Kon nie die teks lees nie.");
+            } finally {
+                statusText.classList.add('hidden');
+                if (cropper) {
+                    cropper.destroy();
+                    cropper = null;
                 }
             }
         });
 
-        // 4. VORM SUBMIT (Via onsigbare Iframe)
+        // 4. VORM SUBMIT (Stuur na Google Sheets via onsigbare Iframe)
         let isSubmitted = false;
         document.getElementById('geskenkForm').addEventListener('submit', () => {
             const barcode = document.getElementById('barcodeInput').value.trim();
             const itemName = document.getElementById('itemName').value.trim();
             const price = document.getElementById('itemPrice').value.trim();
             
-            // Onthou in geheue vir volgende keer
+            // Onthou hierdie nuwe item in die foon se geheue vir volgende keer
             barcodeMemory[barcode] = { name: itemName, price: price };
             localStorage.setItem('geskenkMemory', JSON.stringify(barcodeMemory));
 
@@ -197,12 +278,12 @@
             btn.classList.add('opacity-70');
         });
 
-        // Sodra die onsigbare iframe laai, weet ons Google het die inligting ontvang
+        // Sodra die onsigbare iframe laai, weet ons Google het die inligting suksesvol ontvang
         function frameLoaded() {
             if (isSubmitted) {
                 isSubmitted = false;
                 
-                // Maak velde skoon
+                // Maak vorm se velde skoon vir die volgende item
                 document.getElementById('barcodeInput').value = '';
                 document.getElementById('itemName').value = '';
                 document.getElementById('itemPrice').value = '';
